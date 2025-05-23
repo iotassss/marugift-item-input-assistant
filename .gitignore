@@ -1,0 +1,9 @@
+.vscode/
+tmp/
+.env
+.env.development
+.env.production
+log
+memo.md
+data/
+mysql_data/

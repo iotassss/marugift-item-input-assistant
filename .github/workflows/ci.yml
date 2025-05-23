@@ -1,0 +1,80 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Go
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root
+          MYSQL_DATABASE: ci_test_db_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci_root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      MYSQL_USER: ci_user
+      MYSQL_PASSWORD: ci_pass
+      MYSQL_DATABASE: ci_test_db
+      MYSQL_ROOT_PASSWORD: ci_root
+      DB_HOST: mysql
+      DB_PORT: 3306
+
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.23.x
+
+    - name: Install dependencies
+      run: |
+        go mod tidy
+
+    # フォーマットの確認 (go fmt & goimports)
+    - name: Check formatting
+      run: |
+        go install golang.org/x/tools/cmd/goimports@latest
+        fmt_result=$(go fmt ./...)
+        imports_result=$(goimports -l .)
+        if [ -n "$fmt_result" ] || [ -n "$imports_result" ]; then
+          echo "Formatting issues found:"
+          echo "$fmt_result"
+          echo "$imports_result"
+          exit 1
+        fi
+
+    # 静的解析 (go vet & staticcheck)
+    - name: Run go vet
+      run: go vet ./...
+    # - name: Run staticcheck
+    #   uses: reviewdog/action-staticcheck@v1
+    #   with:
+    #     workdir: ./src
+    #     github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    # ビルドの確認
+    - name: Build
+      run: go build -v ./...
+
+    # テストの実行
+    - name: Test
+      run: go test -v ./...
